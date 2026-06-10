@@ -22,6 +22,7 @@ import { createChronicle } from './ui/chronicle'
 import { createCodex } from './ui/codex'
 import { createMinimap } from './ui/minimap'
 import { createIntro } from './ui/intro'
+import { Vector3 } from 'three'
 import type { Dialogue, DialogueTurn } from './types'
 
 const canvas = document.getElementById('game') as HTMLCanvasElement
@@ -136,6 +137,25 @@ async function init() {
 
   window.addEventListener('resize', () => scene.resize())
   setProgress(1)
+
+  // debug/automation handle (used by scripts/smoke.mjs; harmless in production)
+  const proj = new Vector3()
+  ;(window as unknown as Record<string, unknown>).__vale = {
+    world,
+    codex,
+    characters,
+    scene,
+    screenPosOf(id: string) {
+      const a = world.getAgent(id)
+      if (!a) return null
+      proj.set(a.pos.x, 2, a.pos.z).project(scene.camera)
+      return {
+        x: (proj.x * 0.5 + 0.5) * window.innerWidth,
+        y: (-proj.y * 0.5 + 0.5) * window.innerHeight,
+        inFront: proj.z < 1,
+      }
+    },
+  }
 
   // -- loading → intro → run -------------------------------------------------------
   loading.classList.add('done')
