@@ -30,8 +30,10 @@ export const PERCEIVE_RADIUS = 14
 export const OBSERVE_DEDUP_MIN = 45      // same agent+activity not re-recorded within this
 export const RECENCY_DECAY = 0.995       // per game-hour since last access
 export const RETRIEVE_K = 6
-export const REFLECTION_THRESHOLD = 50   // unreflected importance sum triggering reflection
+export const REFLECTION_THRESHOLD = 80   // unreflected importance sum triggering reflection
 export const REFLECT_WINDOW = 40         // memories considered when reflecting
+export const REFLECT_COOLDOWN_MIN = 240  // min game-minutes between reflections (frees the
+                                         // mind-slot so player chat isn't starved)
 export const SEED_IMPORTANCE = 5
 
 // ---- conversations (ai-town lattice, in game-minutes) ----
@@ -66,7 +68,7 @@ export const AFFECTION_CLAMP: [number, number] = [-3, 5]  // per-conversation de
 
 // ---- async ops / llm ----
 export const OP_TIMEOUT_MS = 60_000      // real ms watchdog
-export const LLM_MAX_CONCURRENT = 2      // client-side gate
+export const LLM_MAX_CONCURRENT = 3      // client-side gate (server caps at 4)
 export const LLM_TIMEOUT_MS = 30_000
 export const CHAT_SUMMARIZE_AFTER = 12   // chat turns before rolling summary
 export const CHAT_KEEP_TURNS = 6

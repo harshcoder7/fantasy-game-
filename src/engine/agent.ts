@@ -32,6 +32,7 @@ import {
   PERCEIVE_RADIUS,
   PLAN_HOUR,
   REFLECTION_THRESHOLD,
+  REFLECT_COOLDOWN_MIN,
   REFLECT_WINDOW,
   SEED_IMPORTANCE,
   WALK_SPEED,
@@ -109,6 +110,8 @@ export function createAgent(world: WorldApi, persona: Persona): AgentInternal {
   let lastAnnounced: { placeId: string | undefined; description: string } | null = null
   /** day a daily-plan op was last (successfully) scheduled for */
   let scheduledPlanDay = 0
+  /** when reflection last got scheduled — cooldown keeps the mind-slot free for chat */
+  let lastReflectMin = -Infinity
   /** perception dedup: "otherId|description" -> last recorded totalMin */
   const observed = new Map<string, number>()
 
@@ -486,9 +489,12 @@ export function createAgent(world: WorldApi, persona: Persona): AgentInternal {
       if (wantsPlan && !world.ops.busy(id)) {
         schedulePlanOp(t.day)
       } else if (
+        !asleep &&
+        now - lastReflectMin >= REFLECT_COOLDOWN_MIN &&
         memory.unreflectedImportance() >= REFLECTION_THRESHOLD &&
         !world.ops.busy(id)
       ) {
+        lastReflectMin = now
         scheduleReflectOp()
       }
 

@@ -101,24 +101,24 @@ app.post('/api/llm', async (req, res) => {
         clearTimeout(timer)
         const ms = Date.now() - t0
         if (!upstream.ok) {
-          console.log(`[llm] ${model} ${ms}ms http${upstream.status}`)
+          console.log(`[${new Date().toISOString().slice(11, 19)}] [llm] ${model} ${ms}ms http${upstream.status}`)
           continue
         }
         const data = await upstream.json()
         const text = data?.choices?.[0]?.message?.content
         if (typeof text !== 'string' || text.trim() === '') {
-          console.log(`[llm] ${model} ${ms}ms empty`)
+          console.log(`[${new Date().toISOString().slice(11, 19)}] [llm] ${model} ${ms}ms empty`)
           continue
         }
         lastGoodModel = idx
-        console.log(`[llm] ${model} ${ms}ms ${text.length}ch`)
+        console.log(`[${new Date().toISOString().slice(11, 19)}] [llm] ${model} ${ms}ms ${text.length}ch`)
         res.json({ text, model })
         return
       } catch (err) {
         clearTimeout(timer)
         const ms = Date.now() - t0
         const reason = err instanceof Error && err.name === 'AbortError' ? 'timeout' : 'error'
-        console.log(`[llm] ${model} ${ms}ms ${reason}`)
+        console.log(`[${new Date().toISOString().slice(11, 19)}] [llm] ${model} ${ms}ms ${reason}`)
       }
     }
     res.status(502).json({ error: 'all model attempts failed' })

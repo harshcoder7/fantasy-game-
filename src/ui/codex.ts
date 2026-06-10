@@ -531,7 +531,16 @@ export function createCodex(
     setWaiting(agentId, true)
 
     let guard = 0
-    const scheduled = world.ops.schedule(agentId, 'chat', async () => {
+    const armGuard = (): void => {
+      guard = window.setTimeout(() => {
+        if (!chatState(agentId).waiting) return
+        setWaiting(agentId, false)
+        if (speakUi && speakUi.agentId === agentId) {
+          appendNote(speakUi.log, 'The thread of thought frays into silence…')
+        }
+      }, OP_TIMEOUT_MS)
+    }
+    const trySchedule = (): boolean => world.ops.schedule(agentId, 'chat', async () => {
       const nowMin = world.clock.time.totalMin
       const context = a.memory.retrieve(msg, nowMin)
       const reply = await world.brain.chatReply(
@@ -559,22 +568,33 @@ export function createCodex(
       }
     })
 
-    if (!scheduled) {
-      st.history.pop()
-      setWaiting(agentId, false)
+    if (!trySchedule()) {
+      // their mind is occupied (planning/reflecting/talking) — queue and keep
+      // retrying instead of dropping the player's words
       if (speakUi && speakUi.agentId === agentId) {
-        appendNote(speakUi.log, `${a.persona.name} is lost in thought — give them a moment.`)
+        appendNote(speakUi.log, `${a.persona.name} is occupied — they will answer as soon as they can…`)
       }
+      let attempts = 0
+      const retry = window.setInterval(() => {
+        attempts++
+        if (trySchedule()) {
+          window.clearInterval(retry)
+          armGuard()
+          return
+        }
+        if (attempts >= 40) {
+          window.clearInterval(retry)
+          st.history.pop()
+          setWaiting(agentId, false)
+          if (speakUi && speakUi.agentId === agentId) {
+            appendNote(speakUi.log, `${a.persona.name} cannot break away right now — try again in a moment.`)
+          }
+        }
+      }, 1200)
       return
     }
 
-    guard = window.setTimeout(() => {
-      if (!chatState(agentId).waiting) return
-      setWaiting(agentId, false)
-      if (speakUi && speakUi.agentId === agentId) {
-        appendNote(speakUi.log, 'The thread of thought frays into silence…')
-      }
-    }, OP_TIMEOUT_MS)
+    armGuard()
   }
 
   function renderSpeak(a: AgentApi): void {
