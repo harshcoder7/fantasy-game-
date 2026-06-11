@@ -46,7 +46,7 @@ export const MAX_TURNS = 8
 export const MIN_TURNS = 4
 export const TURN_REVEAL_MIN = 5         // one bubble per N game-minutes
 export const MAX_DIALOGUE_MIN = 70
-export const WALKOVER_TIMEOUT_MIN = 30
+export const WALKOVER_TIMEOUT_MIN = 90  // generous: at 10× speed this is only 9 real seconds
 export const TALK_SOCIAL_GAIN = 4        // social satisfaction per revealed turn
 
 // ---- needs (satisfaction 0..100; decay per game-minute) ----

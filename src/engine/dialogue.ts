@@ -49,9 +49,15 @@ interface DialogueState extends Dialogue {
   genScheduled: boolean
   /** when 'talking' began — MAX_DIALOGUE_MIN is measured from here */
   talkSinceMin: number
+  /** real-clock ms when 'talking' began — LLM generation gets a real-time grace
+   * window regardless of game speed (at 10× the game-minute budget is seconds) */
+  talkRealMs: number
   /** next game-minute a pending turn may be revealed */
   nextRevealMin: number
 }
+
+/** real-time cap on waiting for the converse generation before giving up */
+const GEN_GRACE_REAL_MS = 90_000
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v))
@@ -130,6 +136,7 @@ export function createDialogueManager(world: WorldApi): DialogueManagerApi {
       rumorToId: null,
       genScheduled: false,
       talkSinceMin: nowMin,
+      talkRealMs: 0,
       nextRevealMin: Infinity,
     }
     dialogues.set(id, d)
@@ -163,6 +170,7 @@ export function createDialogueManager(world: WorldApi): DialogueManagerApi {
   function beginTalking(d: DialogueState, a: AgentInternal, b: AgentInternal, nowMin: number): void {
     d.state = 'talking'
     d.talkSinceMin = nowMin
+    d.talkRealMs = Date.now()
     // stop both (setAction without a target clears any remaining path)
     a.setAction({
       kind: 'talk',
@@ -256,17 +264,23 @@ export function createDialogueManager(world: WorldApi): DialogueManagerApi {
     dialogues.delete(d.id)
     d.state = 'done'
     const s = d.summary
-    if (s !== null) {
+    // a conversation "happened" if the summary landed OR words were exchanged;
+    // effects must not depend on the (possibly slow/reaped) LLM summary, or
+    // rumors never spread at high game speeds
+    const happened = s !== null || d.turns.length >= 2
+    if (happened) {
+      const aSummary = s?.aSummary ?? `I spoke with ${firstName(b.persona)} about ${topicOf(d)}`
+      const bSummary = s?.bSummary ?? `I spoke with ${firstName(a.persona)} about ${topicOf(d)}`
       // +1 over the heuristic for the social weight of a real conversation
       a.memory.add(
-        'dialogue', s.aSummary,
-        Math.min(10, scoreImportance(s.aSummary) + 1), nowMin, [d.bId],
+        'dialogue', aSummary,
+        Math.min(10, scoreImportance(aSummary) + 1), nowMin, [d.bId],
       )
       b.memory.add(
-        'dialogue', s.bSummary,
-        Math.min(10, scoreImportance(s.bSummary) + 1), nowMin, [d.aId],
+        'dialogue', bSummary,
+        Math.min(10, scoreImportance(bSummary) + 1), nowMin, [d.aId],
       )
-      const delta = clamp(s.affectionDelta, AFFECTION_CLAMP[0], AFFECTION_CLAMP[1])
+      const delta = clamp(s?.affectionDelta ?? 1, AFFECTION_CLAMP[0], AFFECTION_CLAMP[1])
       a.adjustAffection(d.bId, delta)
       b.adjustAffection(d.aId, delta)
       if (d.rumorId !== null && d.rumorFromId !== null && d.rumorToId !== null) {
@@ -279,14 +293,14 @@ export function createDialogueManager(world: WorldApi): DialogueManagerApi {
           ])
         }
       }
+      chronicle(
+        '💬',
+        `${firstName(a.persona)} and ${firstName(b.persona)} spoke of ${topicOf(d)}.`,
+        'talk',
+        [d.aId, d.bId],
+      )
     }
     world.bus.emit('dialogue:end', { dialogue: d })
-    chronicle(
-      '💬',
-      `${firstName(a.persona)} and ${firstName(b.persona)} spoke of ${topicOf(d)}.`,
-      'talk',
-      [d.aId, d.bId],
-    )
     a.setDialogue(null) // also clears their talk actions, so minuteTick re-plans
     b.setDialogue(null)
     const key = pairKey(d.aId, d.bId)
@@ -346,7 +360,16 @@ export function createDialogueManager(world: WorldApi): DialogueManagerApi {
             end(d, a, b, nowMin)
             continue
           }
-          if (nowMin - d.talkSinceMin >= MAX_DIALOGUE_MIN) {
+          const waitingForGen =
+            d.summary === null && d.pending.length === 0 && d.turns.length === 0
+          if (waitingForGen) {
+            // LLM latency is real-time; don't let game-speed eat the budget
+            d.talkSinceMin = nowMin
+            if (Date.now() - d.talkRealMs > GEN_GRACE_REAL_MS) {
+              cancel(d, a, b, nowMin) // generation never landed (op reaped)
+              continue
+            }
+          } else if (nowMin - d.talkSinceMin >= MAX_DIALOGUE_MIN) {
             end(d, a, b, nowMin) // end with whatever was revealed
             continue
           }

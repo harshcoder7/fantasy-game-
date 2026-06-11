@@ -197,4 +197,44 @@ describe('dialogue manager (real world, local brain)', () => {
     expect(memOfIt).toBeDefined()
     expect(memOfIt!.importance).toBe(secret.spice)
   }, 60_000)
+
+  it('rumor still spreads at 10× speed when the brain has real LLM latency (regression)', async () => {
+    // Slow brain: converse resolves after a real 250ms delay — at 10× speed
+    // that is ~50 game-minutes of waiting, which used to blow the dialogue
+    // budget, end it summary-less, and skip ALL effects (rumors never spread).
+    const world = buildWorld(SIM_SEED + 7, [
+      { id: 'slow-secret', text: 'The miller hides gold beneath the windmill', spice: 8, sourceId: 'greta', knownBy: ['greta'] },
+    ])
+    const inner = createBrain(null, createRng(SIM_SEED + 8))
+    const slowBrain = {
+      ...inner,
+      converse: async (...args: Parameters<typeof inner.converse>) => {
+        await new Promise((r) => setTimeout(r, 250))
+        return inner.converse(...args)
+      },
+    }
+    ;(world as unknown as { brain: typeof slowBrain }).brain = slowBrain
+
+    world.clock.speed = 10
+    const a = world.getAgent('greta')!
+    const b = world.getAgent('thorin')!
+    let ended = 0
+    world.bus.on('dialogue:end', () => {
+      ended += 1
+    })
+
+    // dt 0.5 at speed 10 = 10 game-min per update; ~real time passes via flush+timeout
+    const deadline = Date.now() + 30_000
+    while (Date.now() < deadline && !world.rumors.knows('thorin', 'slow-secret')) {
+      if (a.dialogueId === null && b.dialogueId === null) teleportPair(world, a, b)
+      world.update(0.5)
+      await new Promise((r) => setTimeout(r, 20))
+    }
+
+    expect(ended).toBeGreaterThanOrEqual(1)
+    expect(world.rumors.knows('thorin', 'slow-secret')).toBe(true)
+    // the conversation left memories on both sides even if its summary was synthesized
+    expect(a.memory.byKind('dialogue').length).toBeGreaterThanOrEqual(1)
+    expect(b.memory.byKind('dialogue').length).toBeGreaterThanOrEqual(1)
+  }, 45_000)
 })
