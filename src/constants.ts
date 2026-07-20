@@ -77,3 +77,9 @@ export const CHAT_REPLY_WORDS = 80
 // ---- planner ----
 export const ROUTINE_JITTER_MIN = 20
 export const PLAN_MAX_STEPS = 14
+
+// ---- long-term memory (lore codex: offline ingestion + vector retrieval) ----
+export const EMBED_DIM = 128             // feature-hashing embedding width
+export const LORE_CHUNK_MAX_WORDS = 70   // offline ingestion chunk size
+export const LORE_CHUNK_OVERLAP_WORDS = 15
+export const LORE_RETRIEVE_K = 3         // chunks grounded into a chat reply

@@ -19,6 +19,10 @@ Built from the research up:
   the conversation state machine (walk-over → talk → part), the playtested cooldown lattice.
 - **philoagents** (neural-maze) — character-card prompts, summarize-when-long player chat,
   typewriter dialogue UX.
+- **Iusztin's 4-layer agent memory model** (Decoding AI) — internal knowledge, context window,
+  short-term and long-term memory as distinct layers; the vale's shared lore codex is a real
+  offline-ingest / live-vector-retrieval long-term memory grounding villager chat, on top of
+  each villager's own episodic memory stream above.
 
 ## Quick start
 
@@ -85,7 +89,8 @@ No key? Delete it — the vale dreams locally.
 
 ```
 src/engine/   pure simulation (node-testable): clock, grid/A*, memory, needs,
-              rumors, planner, agent, dialogue, ops, world
+              rumors, planner, agent, dialogue, ops, world,
+              embeddings/longTermMemory/agentMemory (lore codex, RAG-style)
 src/llm/      transport, prompts, local brain, LLM brain
 src/three/    scene/sky/lighting, terrain/water, village, nature, effects,
               festival, characters — 100% procedural, zero asset files
