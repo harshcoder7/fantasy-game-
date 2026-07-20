@@ -167,6 +167,53 @@ export interface MemoryStreamApi {
   all(): readonly MemoryRecord[]
 }
 
+// ---------------------------------------------------------------- long-term memory (lore)
+/**
+ * The lore codex — Everdawn Vale's shared long-term memory. Distinct from a
+ * villager's per-agent memory stream (episodic, lexical): this is a single
+ * world-wide vector index, built once offline (ingest) and queried live
+ * (retrieve) the way a RAG pipeline grounds an LLM call in a knowledge base.
+ */
+export interface LoreDoc { id: string; text: string }
+
+export interface LoreChunk { id: string; docId: string; text: string; embedding: number[] }
+
+export interface LoreHit { id: string; docId: string; text: string; score: number }
+
+export interface LongTermMemoryApi {
+  /** offline phase: chunk each document and embed+index every chunk */
+  ingest(docs: LoreDoc[]): void
+  /** live phase: embed the query, cosine-rank indexed chunks, return top k best-first */
+  retrieve(query: string, k?: number): LoreHit[]
+  count(): number
+  all(): readonly LoreChunk[]
+}
+
+/**
+ * The four-layer agent memory model: internal knowledge (static, handed in
+ * at creation — stands in for facts baked into the weights), long-term
+ * memory (LongTermMemoryApi above), short-term memory (the rolling turn
+ * buffer here), and the context window (assembled fresh per call by
+ * buildContextWindow, drawing on the other three).
+ */
+export interface ConversationTurn { speaker: string; text: string }
+
+export interface ContextWindow {
+  query: string
+  internalKnowledge: readonly string[]
+  longTermHits: readonly LoreHit[]
+  shortTermTurns: readonly ConversationTurn[]
+}
+
+export interface AgentMemoryApi {
+  internalKnowledge(): readonly string[]
+  pushTurn(speaker: string, text: string): void
+  /** newest-last, most recent n (default: a small conversational window) */
+  recentTurns(n?: number): ConversationTurn[]
+  longTermRetrieve(query: string, k?: number): LoreHit[]
+  buildContextWindow(query: string, opts?: { longTermK?: number; recentTurns?: number }): ContextWindow
+}
+
 // ---------------------------------------------------------------- needs
 export type NeedId = 'energy' | 'hunger' | 'social' | 'spirit'
 
@@ -424,6 +471,8 @@ export interface WorldApi {
   readonly dialogues: DialogueManagerApi
   readonly ops: OpRunnerApi
   readonly brain: Brain
+  /** the vale's shared lore codex — long-term memory, ingested once at world creation */
+  readonly loreMemory: LongTermMemoryApi
   /** true between festival:start and festival:end */
   readonly festivalActive: boolean
   getAgent(id: string): AgentApi | undefined
@@ -466,6 +515,11 @@ export interface WorldOptions {
  *                       (sorted, clamped, gaps ok; null if hopeless — used by llm/brain.ts)
  *                     routineToPlan(p: Persona, rng: Rng, knowsFestival: boolean, day: number): PlanStep[]
  *                       (parse routine, ±RUTINE_JITTER_MIN jitter, inject festival step on day)
+ *  engine/embeddings.ts     embed(text: string, dim?: number): number[]       (feature-hashing, L2-normalized)
+ *                           cosineSimilarity(a: number[], b: number[]): number (dot product of unit vectors)
+ *  engine/longTermMemory.ts createLongTermMemory(): LongTermMemoryApi
+ *                           chunkText(text: string, maxWords?: number, overlap?: number): string[]
+ *  engine/agentMemory.ts    createAgentMemory(internalKnowledge: string[], longTerm: LongTermMemoryApi): AgentMemoryApi
  *  engine/agent.ts    createAgent(world: WorldApi, persona: Persona): AgentApi
  *  engine/dialogue.ts createDialogueManager(world: WorldApi): DialogueManagerApi
  *  engine/ops.ts      createOpRunner(): OpRunnerApi

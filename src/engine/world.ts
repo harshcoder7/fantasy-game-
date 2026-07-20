@@ -39,6 +39,8 @@ import { createRumorBoard } from './rumors'
 import { createOpRunner } from './ops'
 import { createAgent } from './agent'
 import { createDialogueManager } from './dialogue'
+import { createLongTermMemory } from './longTermMemory'
+import { LORE_DOCS } from '../data/lore'
 
 /** cap on minute-ticks processed per update — a stalled tab can't avalanche */
 const MAX_MINUTES_PER_UPDATE = 30
@@ -66,6 +68,10 @@ export function createWorld(opts: WorldOptions): WorldApi {
   const rumors = createRumorBoard(bus)
   for (const seed of opts.rumorSeeds) rumors.seed(seed)
   const ops = createOpRunner()
+
+  // shared long-term memory: offline-ingested once, retrieved live to ground chat (ui/codex.ts)
+  const loreMemory = createLongTermMemory()
+  loreMemory.ingest(LORE_DOCS)
 
   const placeMap = new Map<string, PlaceDef>()
   for (const place of opts.places) placeMap.set(place.id, place)
@@ -208,6 +214,7 @@ export function createWorld(opts: WorldOptions): WorldApi {
     },
     ops,
     brain: opts.brain,
+    loreMemory,
     get festivalActive(): boolean {
       return festivalActive
     },

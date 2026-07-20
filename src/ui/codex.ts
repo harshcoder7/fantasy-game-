@@ -9,7 +9,7 @@ import type {
   NeedId, PlanStep, Vec2, WorldApi,
 } from '../types'
 import {
-  CHAT_KEEP_TURNS, CHAT_SUMMARIZE_AFTER, FRIEND_THRESHOLD, OP_TIMEOUT_MS,
+  CHAT_KEEP_TURNS, CHAT_SUMMARIZE_AFTER, FRIEND_THRESHOLD, LORE_RETRIEVE_K, OP_TIMEOUT_MS,
 } from '../constants'
 
 type TabId = 'soul' | 'mind' | 'day' | 'speak'
@@ -542,7 +542,19 @@ export function createCodex(
     }
     const trySchedule = (): boolean => world.ops.schedule(agentId, 'chat', async () => {
       const nowMin = world.clock.time.totalMin
-      const context = a.memory.retrieve(msg, nowMin)
+      // ground the reply in the shared lore codex (long-term memory) alongside
+      // this villager's own episodic memory stream (short-term/observational)
+      const loreHits = world.loreMemory.retrieve(msg, LORE_RETRIEVE_K)
+      const loreContext: MemoryRecord[] = loreHits.map((hit, i) => ({
+        id: -1 - i,
+        kind: 'seed',
+        text: hit.text,
+        createdMin: nowMin,
+        lastAccessMin: nowMin,
+        importance: Math.max(1, Math.min(10, Math.round(hit.score * 10))),
+        subjects: [],
+      }))
+      const context = [...a.memory.retrieve(msg, nowMin), ...loreContext]
       const reply = await world.brain.chatReply(
         a.persona, a.status(), context, historySnapshot, summarySnapshot, msg, world.clock.time,
       )

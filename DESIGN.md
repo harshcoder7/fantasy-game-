@@ -93,6 +93,21 @@ memories, conversation summary-so-far) + last K turns; ≤80-word replies; after
 `CHAT_SUMMARIZE_AFTER` turns the older turns are summarized into the card. The villager
 afterwards remembers: "A mysterious wanderer spoke with me about …" (importance 6).
 
+**Lore codex — long-term memory** (Iusztin/Decoding AI's 4-layer agent memory model):
+distinct from a villager's own memory stream above (episodic, per-agent, lexical), the vale
+keeps one shared, semantic long-term memory: `engine/longTermMemory.ts` chunks and embeds
+`data/lore.ts`'s world lore *offline*, once, at world creation (`world.loreMemory`), then
+`retrieve(query, k)` embeds the incoming message and cosine-ranks the index *live*. Player
+chat (`ui/codex.ts`) merges its top hits into the same `MemoryRecord[]` context already sent
+to `brain.chatReply`, so a villager's answer is grounded in the codex, not improvised.
+`engine/embeddings.ts` is a dependency-free feature-hashing embedding (no network, no model
+weights — same "pull the cable, it still works" rule as LocalBrain), swappable later for a
+real embedding model without touching the retrieval or chunking contracts.
+`engine/agentMemory.ts` composes the full four layers explicitly for anyone who wants the
+whole model at once: internal knowledge (static facts, never mutated) + long-term memory
+(above) + short-term memory (rolling turn buffer) → `buildContextWindow(query)`, the exact
+slice a caller would hand to an LLM.
+
 **LLM ops never block the tick** (ai-town): `agent.tick()` may schedule at most one async
 brain op; while in flight the agent shows 💭 and keeps acting on current plan; results apply
 at a later tick via a completion queue; watchdog `OP_TIMEOUT_MS` real-ms clears stuck ops.
