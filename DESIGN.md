@@ -133,7 +133,25 @@ from three.js primitives + BufferGeometry. Quality bar: a screenshot should look
 indie game, not a tech demo.
 
 - Renderer: ACESFilmic tone mapping, sRGB, PCFSoft shadows (2048 shadow map on the sun),
-  fog matched to sky color.
+  fog matched to sky color. No stencil buffer (nothing in the scene uses it). MSAA
+  (`antialias`) is only requested below devicePixelRatio 2 — at 2x the supersampling from
+  pixel density already smooths edges, so native MSAA on top would double GPU/memory cost
+  for negligible extra sharpness.
+- Trees/rocks/flowers/mushrooms (nature.ts) are `THREE.InstancedMesh`, not one draw call per
+  object — hundreds of props, a handful of draw calls. Decorative props that never cast a
+  readable shadow (flower heads, mushroom caps) skip `castShadow` entirely.
+- The whole render/UI loop reuses scratch `Vector3`/`Quaternion`/`Color` objects instead of
+  allocating per frame (scene.ts, characters.ts, effects.ts) — no GC pressure from the hot path.
+  HUD/chronicle text only touches the DOM when the underlying value actually changed
+  (change-detection caches in hud.ts); codex/minimap redraw at ~7Hz, not every frame — plenty
+  for a human to read, a fraction of the DOM/canvas work.
+- Build: `vite.config.ts` splits three.js into its own chunk (it barely changes between
+  releases and is ~80% of the bundle) so browsers cache it across deploys instead of
+  re-fetching it whenever app code changes. `server.js` gzips responses and marks vite's
+  content-hashed `assets/*` immutable for a year, while `index.html` stays `no-cache` so a new
+  deploy is always picked up. Fonts are linked from `index.html` (with `preconnect`), not
+  `@import`-ed from CSS, so the font fetch starts immediately instead of being discovered only
+  after the stylesheet itself downloads and parses.
 - Sky: big inverted sphere with vertex-colored gradient updated by time of day (night
   navy→pre-dawn purple→day azure→dusk orange); sun disc + moon disc orbiting; ~600 star
   points fading in at night; ambient + hemisphere + directional sun light all lerping color

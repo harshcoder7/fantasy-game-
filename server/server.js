@@ -12,6 +12,7 @@
  * Serves ../dist statically (with index.html fallback) when a build exists.
  */
 import express from 'express'
+import compression from 'compression'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,6 +44,7 @@ function clampNumber(value, lo, hi, fallback) {
 }
 
 const app = express()
+app.use(compression()) // gzip/br the JS/CSS bundle + JSON responses (~700KB -> ~200KB)
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/api/health', (_req, res) => {
@@ -128,12 +130,20 @@ app.post('/api/llm', async (req, res) => {
 })
 
 if (existsSync(distDir)) {
-  app.use(express.static(distDir))
+  // vite content-hashes everything under assets/ (e.g. index-B7K53IE3.js), so a
+  // changed file always gets a new URL — safe to cache those forever. index.html
+  // is the one file that must always be revalidated, or a stale build would stick.
+  app.use(express.static(distDir, { index: false, setHeaders(res, filePath) {
+    if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    }
+  } }))
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) {
       next()
       return
     }
+    res.setHeader('Cache-Control', 'no-cache')
     res.sendFile(path.join(distDir, 'index.html'))
   })
 }

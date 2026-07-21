@@ -175,13 +175,22 @@ function buildStarGeometry(): THREE.BufferGeometry {
 // ---------------------------------------------------------------- factory
 export function createScene(canvas: HTMLCanvasElement): SceneCtx {
   // -- renderer ---------------------------------------------------------------
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
+  // At devicePixelRatio >= 2 the extra pixel density already smooths edges on its
+  // own, so paying for MSAA on top buys little visible sharpness for real GPU/
+  // memory cost (the resolve pass roughly doubles); only ask for it at 1x.
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: pixelRatio < 1.5,
+    stencil: false, // no stencil-buffer effects (masks/outlines) anywhere in the scene
+    powerPreference: 'high-performance',
+  })
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.1
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  renderer.setPixelRatio(pixelRatio)
   renderer.setClearColor(0x070d24, 1)
 
   // -- scene / camera / controls ----------------------------------------------

@@ -1,8 +1,9 @@
 /* ============================================================================
    Everdawn Vale — diegetic fantasy HUD (DESIGN.md §5).
    No image assets: gradients, borders and shadows only.
+   Fonts (Cinzel, EB Garamond) are linked from index.html <head>, not @import-ed
+   here — @import serializes the fetch behind this file's own download+parse.
    ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;900&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
 
 :root {
   --parchment: #f0e2c4;
